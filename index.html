@@ -23,8 +23,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px}
 section{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .cap{padding:8px 14px;border-bottom:1px solid var(--line);color:var(--mute);font-size:13px;font-weight:600}
-#ta{flex:1;width:100%;border:0;resize:none;padding:14px;background:transparent;color:var(--ink);font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2}
-#ta:focus-visible{outline-offset:-2px}
+#ta,#css{flex:1;width:100%;border:0;resize:none;padding:14px;background:transparent;color:var(--ink);font:13.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:2}
+#ta:focus-visible,#css:focus-visible{outline-offset:-2px}
 #blockPane{flex:1;min-height:0;display:flex;flex-direction:column}
 #palette{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line)}
 #palette button{border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:4px 11px;font:inherit;font-size:13px;cursor:pointer}
@@ -40,6 +40,8 @@ section{background:var(--panel);border:1px solid var(--line);border-radius:10px;
 .block input,.block textarea{display:block;width:100%;margin-top:2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit}
 .block textarea{min-height:56px;resize:vertical}
 .block textarea.mono{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace}
+.tabs{display:flex;gap:4px;padding:6px 10px}.tabs button{border:0;background:transparent;color:var(--mute);font:inherit;font-weight:600;padding:4px 12px;border-radius:6px;cursor:pointer}.tabs button[aria-pressed="true"]{background:var(--soft);color:var(--ink)}
+.block label.chk{display:flex;align-items:center;gap:8px;color:var(--ink)}.block label.chk input{width:auto;margin:0}
 .empty{color:var(--mute);text-align:center;margin:24px 0}
 iframe{flex:1;width:100%;border:0;background:#fff}
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -60,8 +62,9 @@ iframe{flex:1;width:100%;border:0;background:#fff}
 </header>
 <main>
   <section>
-    <div class="cap" id="capL">HTML code</div>
+    <div class="cap tabs"><button id="tMain" aria-pressed="true">HTML code</button><button id="tCss" aria-pressed="false">CSS</button></div>
     <textarea id="ta" spellcheck="false" aria-label="HTML code"></textarea>
+    <textarea id="css" spellcheck="false" aria-label="CSS code" hidden></textarea>
     <div id="blockPane" hidden>
       <div id="palette"></div>
       <div id="blocks"></div>
@@ -69,7 +72,7 @@ iframe{flex:1;width:100%;border:0;background:#fff}
   </section>
   <section>
     <div class="cap">Live preview</div>
-    <iframe id="pv" title="Preview" sandbox="allow-scripts"></iframe>
+    <iframe id="pv" title="Preview" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
   </section>
 </main>
 <div id="toast" role="status"></div>
@@ -78,49 +81,56 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const escA=s=>esc(s).replace(/"/g,'&quot;');
 const PH="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"><rect width="100%" height="100%" fill="#cfd8dc"/><text x="50%" y="52%" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#546e7a">Image</text></svg>');
+const CL=['cls','CSS class'];
 const TYPES={
-  h1:{label:'Heading 1',f:[['text','Text']],d:{text:'Big heading'}},
-  h2:{label:'Heading 2',f:[['text','Text']],d:{text:'Section heading'}},
-  h3:{label:'Heading 3',f:[['text','Text']],d:{text:'Small heading'}},
-  p:{label:'Paragraph',f:[['text','Text','area']],d:{text:'Write something here.'}},
-  a:{label:'Link',f:[['text','Label'],['href','URL']],d:{text:'Visit link',href:'https://example.com'}},
-  img:{label:'Image',f:[['src','Image URL'],['alt','Alt text']],d:{src:PH,alt:'Placeholder'}},
-  button:{label:'Button',f:[['text','Label']],d:{text:'Click me'}},
-  ul:{label:'List',f:[['text','One item per line','area']],d:{text:'First item\nSecond item\nThird item'}},
-  input:{label:'Input',f:[['text','Placeholder']],d:{text:'Type here'}},
+  h1:{label:'Heading 1',f:[['text','Text'],CL],d:{text:'Big heading'}},
+  h2:{label:'Heading 2',f:[['text','Text'],CL],d:{text:'Section heading'}},
+  h3:{label:'Heading 3',f:[['text','Text'],CL],d:{text:'Small heading'}},
+  p:{label:'Paragraph',f:[['text','Text','area'],CL],d:{text:'Write something here.'}},
+  a:{label:'Link',f:[['text','Label'],['href','URL'],['newtab','Open in new tab','check'],CL],d:{text:'Visit link',href:'https://example.com',newtab:true}},
+  img:{label:'Image',f:[['src','Image URL'],['alt','Alt text'],CL],d:{src:PH,alt:'Placeholder'}},
+  button:{label:'Button',f:[['text','Label'],CL],d:{text:'Click me'}},
+  ul:{label:'List',f:[['text','One item per line','area'],CL],d:{text:'First item\nSecond item\nThird item'}},
+  input:{label:'Input',f:[['text','Placeholder'],CL],d:{text:'Type here'}},
   hr:{label:'Divider',f:[],d:{}},
   raw:{label:'Raw HTML',f:[['text','HTML','mono']],d:{text:'<div style="padding:12px;background:#eef">Custom HTML</div>'}}
 };
-const START='<h1>Hello, world!</h1>\n<p>Edit this HTML, or switch to Block mode to build with blocks.</p>\n<button onclick="alert(\'Hi!\')">Click me</button>';
-let mode='text',blocks=[],timer;
-const ta=$('#ta');
+const START='<h1>Hello, world!</h1>\n<p>Edit this HTML, or switch to Block mode to build with blocks.</p>\n<a href="https://example.com" target="_blank" rel="noopener">Open a link</a>\n<br><br>\n<button onclick="alert(\'Hi!\')">Click me</button>';
+const CSS0='h1 {\n  color: #0b7a75;\n}\nbutton {\n  padding: 8px 14px;\n  border-radius: 8px;\n  cursor: pointer;\n}';
+let mode='text',tab='main',blocks=[],timer;
+const ta=$('#ta'),cssEl=$('#css');
+const ca=b=>b.cls?` class="${escA(b.cls)}"`:'';
 
 function ser(b){
+  const c=ca(b);
   switch(b.type){
-    case 'h1':case 'h2':case 'h3':case 'p':return `<${b.type}>${esc(b.text)}</${b.type}>`;
-    case 'a':return `<a href="${escA(b.href)}">${esc(b.text)}</a>`;
-    case 'img':return `<img src="${escA(b.src)}" alt="${escA(b.alt)}">`;
-    case 'button':return `<button>${esc(b.text)}</button>`;
-    case 'ul':return `<ul>\n${b.text.split('\n').filter(x=>x.trim()).map(x=>`  <li>${esc(x)}</li>`).join('\n')}\n</ul>`;
-    case 'input':return `<input placeholder="${escA(b.text)}">`;
+    case 'h1':case 'h2':case 'h3':case 'p':return `<${b.type}${c}>${esc(b.text)}</${b.type}>`;
+    case 'a':return `<a href="${escA(b.href)}"${b.newtab?' target="_blank" rel="noopener"':''}${c}>${esc(b.text)}</a>`;
+    case 'img':return `<img src="${escA(b.src)}" alt="${escA(b.alt)}"${c}>`;
+    case 'button':return `<button${c}>${esc(b.text)}</button>`;
+    case 'ul':return `<ul${c}>\n${b.text.split('\n').filter(x=>x.trim()).map(x=>`  <li>${esc(x)}</li>`).join('\n')}\n</ul>`;
+    case 'input':return `<input placeholder="${escA(b.text)}"${c}>`;
     case 'hr':return '<hr>';
     default:return b.text;
   }
 }
 const toHTML=()=>blocks.map(ser).join('\n');
+const body=()=>mode==='text'?ta.value:toHTML();
+const full=()=>(cssEl.value.trim()?`<style>\n${cssEl.value}\n</style>\n`:'')+body();
 
 function parse(code){
   const d=new DOMParser().parseFromString(code,'text/html'),out=[];
+  const ok=(attrs,allow)=>attrs.every(a=>allow.includes(a));
   d.head.querySelectorAll('style').forEach(e=>out.push({type:'raw',text:e.outerHTML}));
   d.body.childNodes.forEach(n=>{
     if(n.nodeType===3){const t=n.textContent.trim();if(t)out.push({type:'p',text:t});return}
     if(n.nodeType!==1)return;
-    const t=n.tagName.toLowerCase(),plain=!n.children.length,attrs=[...n.attributes].map(a=>a.name);
-    if(['h1','h2','h3','p','button'].includes(t)&&plain&&!attrs.length)out.push({type:t,text:n.textContent});
-    else if(t==='a'&&plain&&attrs.every(a=>a==='href'))out.push({type:'a',text:n.textContent,href:n.getAttribute('href')||''});
-    else if(t==='img'&&attrs.every(a=>a==='src'||a==='alt'))out.push({type:'img',src:n.getAttribute('src')||'',alt:n.getAttribute('alt')||''});
-    else if(t==='ul'&&!attrs.length&&[...n.children].every(c=>c.tagName==='LI'&&!c.children.length&&!c.attributes.length))out.push({type:'ul',text:[...n.children].map(c=>c.textContent).join('\n')});
-    else if(t==='input'&&attrs.every(a=>a==='placeholder'))out.push({type:'input',text:n.getAttribute('placeholder')||''});
+    const t=n.tagName.toLowerCase(),plain=!n.children.length,attrs=[...n.attributes].map(a=>a.name),cls=n.getAttribute('class')||'';
+    if(['h1','h2','h3','p','button'].includes(t)&&plain&&ok(attrs,['class']))out.push({type:t,text:n.textContent,cls});
+    else if(t==='a'&&plain&&ok(attrs,['href','class','target','rel'])&&(!n.getAttribute('target')||n.getAttribute('target')==='_blank'))out.push({type:'a',text:n.textContent,href:n.getAttribute('href')||'',newtab:n.getAttribute('target')==='_blank',cls});
+    else if(t==='img'&&ok(attrs,['src','alt','class']))out.push({type:'img',src:n.getAttribute('src')||'',alt:n.getAttribute('alt')||'',cls});
+    else if(t==='ul'&&ok(attrs,['class'])&&[...n.children].every(c=>c.tagName==='LI'&&!c.children.length&&!c.attributes.length))out.push({type:'ul',text:[...n.children].map(c=>c.textContent).join('\n'),cls});
+    else if(t==='input'&&ok(attrs,['placeholder','class']))out.push({type:'input',text:n.getAttribute('placeholder')||'',cls});
     else if(t==='hr'&&!attrs.length)out.push({type:'hr'});
     else out.push({type:'raw',text:n.outerHTML});
   });
@@ -128,11 +138,21 @@ function parse(code){
 }
 
 function preview(){
-  const html=mode==='text'?ta.value:toHTML();
-  $('#pv').srcdoc='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui,sans-serif;padding:16px;line-height:1.5;color:#1b2430">'+html;
-  try{localStorage.setItem('htmlwb',JSON.stringify(html))}catch(e){}
+  const html=body();
+  $('#pv').srcdoc='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>body{font-family:system-ui,sans-serif;padding:16px;line-height:1.5;color:#1b2430}</style><style>'+cssEl.value+'</style><body>'+html;
+  try{localStorage.setItem('htmlwb',JSON.stringify({html,css:cssEl.value}))}catch(e){}
 }
 function sync(){clearTimeout(timer);timer=setTimeout(preview,120)}
+
+function layout(){
+  const c=tab==='css';
+  ta.hidden=c||mode!=='text';
+  $('#blockPane').hidden=c||mode!=='block';
+  cssEl.hidden=!c;
+  $('#tMain').textContent=mode==='text'?'HTML code':'Blocks';
+  $('#tMain').setAttribute('aria-pressed',!c);
+  $('#tCss').setAttribute('aria-pressed',c);
+}
 
 function renderBlocks(){
   const list=$('#blocks');list.innerHTML='';
@@ -141,7 +161,14 @@ function renderBlocks(){
     const T=TYPES[b.type],el=document.createElement('div');el.className='block';
     el.innerHTML=`<div class="bh"><span class="tag">${T.label}</span><span class="acts"><button data-a="up" title="Move up" aria-label="Move up">↑</button><button data-a="down" title="Move down" aria-label="Move down">↓</button><button data-a="del" title="Delete" aria-label="Delete block">✕</button></span></div>`;
     T.f.forEach(([k,lab,kind])=>{
-      const l=document.createElement('label');l.textContent=lab;
+      const l=document.createElement('label');
+      if(kind==='check'){
+        l.className='chk';
+        const c=document.createElement('input');c.type='checkbox';c.checked=!!b[k];
+        c.onchange=()=>{b[k]=c.checked;sync()};
+        l.append(c,lab);el.appendChild(l);return;
+      }
+      l.textContent=lab;
       const inp=document.createElement(kind?'textarea':'input');
       if(kind==='mono')inp.className='mono';
       inp.value=b[k]||'';
@@ -165,8 +192,7 @@ function setMode(m){
   mode=m;
   $('#mText').setAttribute('aria-pressed',m==='text');
   $('#mBlock').setAttribute('aria-pressed',m==='block');
-  ta.hidden=m!=='text';$('#blockPane').hidden=m!=='block';
-  $('#capL').textContent=m==='text'?'HTML code':'Blocks';
+  layout();
   if(m==='block')renderBlocks();
   preview();
 }
@@ -180,23 +206,34 @@ Object.keys(TYPES).forEach(k=>{
 
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1600)}
 $('#copy').onclick=async()=>{
-  const html=mode==='text'?ta.value:toHTML();
+  const html=full();
   try{await navigator.clipboard.writeText(html)}
   catch(e){const t=document.createElement('textarea');t.value=html;document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch(_){}t.remove()}
-  toast('HTML copied');
+  toast('HTML + CSS copied');
 };
-$('#clear').onclick=()=>{if(mode==='text')ta.value='';else{blocks=[];renderBlocks()}preview()};
+$('#clear').onclick=()=>{
+  if(tab==='css')cssEl.value='';
+  else if(mode==='text')ta.value='';
+  else{blocks=[];renderBlocks()}
+  preview();
+};
 $('#mText').onclick=()=>setMode('text');
 $('#mBlock').onclick=()=>setMode('block');
-ta.addEventListener('input',sync);
-ta.addEventListener('keydown',e=>{
-  if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.setRangeText('  ',s,ta.selectionEnd,'end');sync()}
+$('#tMain').onclick=()=>{tab='main';layout()};
+$('#tCss').onclick=()=>{tab='css';layout()};
+[ta,cssEl].forEach(x=>{
+  x.addEventListener('input',sync);
+  x.addEventListener('keydown',e=>{
+    if(e.key==='Tab'){e.preventDefault();x.setRangeText('  ',x.selectionStart,x.selectionEnd,'end');sync()}
+  });
 });
 
 let saved=null;
 try{const r=localStorage.getItem('htmlwb');if(r)saved=JSON.parse(r)}catch(e){}
-ta.value=saved!==null?saved:START;
-preview();
+let sh=START,sc=CSS0;
+if(saved!==null){if(typeof saved==='string'){sh=saved;sc=''}else{sh=saved.html;sc=saved.css||''}}
+ta.value=sh;cssEl.value=sc;
+layout();preview();
 </script>
 </body>
 </html>
